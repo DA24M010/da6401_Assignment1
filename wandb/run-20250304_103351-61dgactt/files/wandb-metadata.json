@@ -1,0 +1,31 @@
+{
+  "os":  "Linux-6.11.0-17-generic-x86_64-with-glibc2.39",
+  "python":  "CPython 3.12.7",
+  "startedAt":  "2025-03-04T05:03:51.216027Z",
+  "program":  "/home/mohit/Desktop/da6401_Assignment1/plot.py",
+  "codePath":  "plot.py",
+  "git":  {
+    "remote":  "https://github.com/DA24M010/da6401_Assignment1.git",
+    "commit":  "8f0cb5535c01e53101820380a49f846ee1a316fd"
+  },
+  "email":  "da24m010@smail.iitm.ac.in",
+  "root":  "/home/mohit/Desktop/da6401_Assignment1",
+  "host":  "mohit-ROG-Strix-G513RC-G513RC",
+  "executable":  "/home/mohit/anaconda3/bin/python",
+  "codePathLocal":  "plot.py",
+  "cpu_count":  8,
+  "cpu_count_logical":  16,
+  "disk":  {
+    "/":  {
+      "total":  "90432290816",
+      "used":  "29408894976"
+    }
+  },
+  "memory":  {
+    "total":  "15981785088"
+  },
+  "cpu":  {
+    "count":  8,
+    "countLogical":  16
+  }
+}
