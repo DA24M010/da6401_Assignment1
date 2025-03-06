@@ -1,6 +1,7 @@
 import numpy as np
 import pandas as pd
 from keras.datasets import fashion_mnist
+import wandb
 
 class SGDOptimizer:
     def __init__(self, learning_rate=0.01):
@@ -13,7 +14,7 @@ class SGDOptimizer:
 
 class FeedforwardNN:
     # Implement a feedforward neural network which takes images from the fashion-mnist data as input and outputs a probability distribution over the 10 classes.
-    
+
     # Your code should be flexible such that it is easy to change the number of hidden layers and the number of neurons in each hidden layer.
     def __init__(self, input_size, hidden_layers, learning_rate, activation='relu', optimizer = None):
         self.layers = []
@@ -22,7 +23,7 @@ class FeedforwardNN:
         prev_size = input_size
         self.activation = activation
         self.hidden_layers = hidden_layers
-        self.optimizer = optimizer if optimizer else SGDOptimizer(learning_rate= learning_rate)
+        self.optimizer = optimizer if optimizer == None else self.set_optimizer(optimizer, learning_rate)
 
         for hidden_size in hidden_layers:
             self.layers.append(np.random.randn(prev_size, hidden_size) * 0.01)
@@ -35,6 +36,12 @@ class FeedforwardNN:
         for i in range(len(self.layers)):
             print(self.layers[i].shape, self.biases[i].shape)
     
+    def set_optimizer(self, optimizer, learning_rate):
+        if(optimizer == 'sgd'):
+            return SGDOptimizer(learning_rate)
+        else:
+            return SGDOptimizer(learning_rate)
+
     def relu(self, x):
         return np.maximum(0, x)
 
@@ -107,7 +114,12 @@ class FeedforwardNN:
         
         self.optimizer.update(self.layers, self.biases, grads)
 
-    def train(self, X_train, y_train, epochs=10, batch_size=64):
+    def compute_accuracy(self, y_pred, y_true):
+        y_pred_labels = np.argmax(y_pred, axis=1)
+        y_true_labels = np.argmax(y_true, axis=1)
+        return np.mean(y_pred_labels == y_true_labels)
+
+    def train(self, X_train, y_train, X_val, y_val, epochs=10, batch_size=64):
         for epoch in range(epochs):
             for i in range(0, X_train.shape[0], batch_size):
                 X_batch = X_train[i:i+batch_size]
@@ -116,8 +128,27 @@ class FeedforwardNN:
                 self.forward(X_batch)
                 self.backward(y_batch)
             
-            loss = -np.mean(y_train * np.log(self.forward(X_train) + 1e-8))
-            print(f'Epoch [{epoch+1}/{epochs}], Loss: {loss:.4f}')
+            # Compute Loss and Accuracy
+            y_train_pred = self.forward(X_train)
+            train_loss = -np.mean(y_train * np.log(y_train_pred + 1e-8))
+            train_accuracy = self.compute_accuracy(y_train_pred, y_train)
+
+            y_val_pred = self.forward(X_val)
+            val_loss = -np.mean(y_val * np.log(y_val_pred + 1e-8))
+            val_accuracy = self.compute_accuracy(y_val_pred, y_val)
+
+            # Log metrics to W&B
+            wandb.log({
+                "train_loss": train_loss,
+                "train_accuracy": train_accuracy,
+                "val_loss": val_loss,
+                "val_accuracy": val_accuracy,
+            })
+
+            print(f'Epoch [{epoch+1}/{epochs}], '
+                  f'Train Loss: {train_loss:.4f}, Train Acc: {train_accuracy:.4f}, '
+                  f'Val Loss: {val_loss:.4f}, Val Acc: {val_accuracy:.4f}')
+
     
     def summary(self):
         print("Model Summary:")
@@ -135,8 +166,6 @@ y_train = pd.get_dummies(y_train).values
 X_test = x_test.reshape(x_test.shape[0], -1) / 255.0
 y_test = y_test
 
-print(X_train.shape, X_test.shape)
-
 # number of epochs: 5, 10
 # number of hidden layers: 3, 4, 5
 # size of every hidden layer: 32, 64, 128
@@ -147,17 +176,35 @@ print(X_train.shape, X_test.shape)
 # weight initialisation: random, Xavier
 # activation functions: sigmoid, tanh, ReLU
 
-num_epochs = 5
-input_size = 28*28
-hidden_layers = [128, 64]
-weight_decay = 0
+val_split = int(0.9 * X_train.shape[0])
+X_val, y_val = X_train[val_split:], y_train[val_split:]
+X_train, y_train = X_train[:val_split], y_train[:val_split]
 
-learning_rate = 0.01
-optimizer = ''
-batch_size = 64
-weight_initialisation = 'random'
-activation_function = 'relu'
+# Sweep Configuration
+sweep_config = {
+    "method": "grid",
+    "metric": {"name": "val_loss", "goal": "minimize"},
+    "parameters": {
+        "learning_rate": {"values": [0.0001, 0.001, 0.01]},
+        "hidden_layers": {"values": [[64], [128, 64], [256, 128, 64]]},
+        "activation": {"values": ["relu", "sigmoid", "tanh"]},
+        "optimizer": {"values": ["sgd"]},
+        "epochs": {"values": [5, 10]},
+        "batch_size": {"values": [32, 64]}
+    }
+}
 
-model = FeedforwardNN(input_size, hidden_layers, learning_rate=learning_rate, activation=activation_function, optimizer=optimizer)
-model.summary()
-model.train(X_train, y_train)
+sweep_id = wandb.sweep(sweep_config, project="DA6401 Assignments")
+
+def train_sweep():
+    run = wandb.init(project="DA6401 Assignments", entity="da24m010-indian-institute-of-technology-madras") 
+    config = wandb.config 
+    run.name = f"LR_{config.learning_rate}_HL_{config.hidden_layers}_OPT_{config.optimizer}"
+
+
+    model = FeedforwardNN(input_size=28*28, hidden_layers=config.hidden_layers, learning_rate=config.learning_rate,
+                          activation=config.activation, optimizer= config.optimizer)
+    
+    model.train(X_train, y_train, X_val, y_val, epochs=config.epochs, batch_size=64)
+
+wandb.agent(sweep_id, function=train_sweep)
