@@ -2,43 +2,61 @@ import numpy as np
 import pandas as pd
 from keras.datasets import fashion_mnist
 import wandb
-
-class SGDOptimizer:
-    def __init__(self, learning_rate=0.01):
-        self.learning_rate = learning_rate
-    
-    def update(self, layers, biases, grads):
-        for i in range(len(layers)):
-            layers[i] -= self.learning_rate * grads['dw'][i]
-            biases[i] -= self.learning_rate * grads['db'][i]
+from optimizer import *
 
 class FeedforwardNN:
     # Implement a feedforward neural network which takes images from the fashion-mnist data as input and outputs a probability distribution over the 10 classes.
-
     # Your code should be flexible such that it is easy to change the number of hidden layers and the number of neurons in each hidden layer.
-    def __init__(self, input_size, hidden_layers, learning_rate, activation='relu', optimizer = None):
+    def __init__(self, num_layers=1, hidden_size=64, learning_rate=0.01, momentum = 0.9, activation='relu', optimizer=None, weight_init="random"):
         self.layers = []
         self.biases = []
+        # Output size for fashion mnist and mnist
         self.output_size = 10
-        prev_size = input_size
+        # Input size for fashion mnist and mnist, 28*28 images
+        self.input_size = 28*28
+        prev_size = self.input_size
+        self.num_layers = num_layers
+        self.hidden_size = hidden_size
+        self.weight_init = weight_init
         self.activation = activation
-        self.hidden_layers = hidden_layers
+        self.momentum = momentum
         self.optimizer = optimizer if optimizer == None else self.set_optimizer(optimizer, learning_rate)
 
-        for hidden_size in hidden_layers:
-            self.layers.append(np.random.randn(prev_size, hidden_size) * 0.01)
+        for _ in range(num_layers):
+            self.layers.append(self.initialize_weights(weight_init, prev_size, hidden_size))
             self.biases.append(np.zeros((1, hidden_size)))
             prev_size = hidden_size
-        
-        self.layers.append(np.random.randn(prev_size, self.output_size) * 0.01)
+
+        self.layers.append(self.initialize_weights(weight_init, prev_size, self.output_size))
         self.biases.append(np.zeros((1, self.output_size)))
         
+        # # Print layer sizes
         for i in range(len(self.layers)):
-            print(self.layers[i].shape, self.biases[i].shape)
+            print(f"Layer {i}: {self.layers[i].shape}, Bias: {self.biases[i].shape}")
+    
+    def initialize_weights(self, method, input_size, output_size):
+        """
+        Initializes weights based on the given method.
+        
+        Args:
+            method (str): "random" or "Xavier".
+            input_size (int): Number of input neurons.
+            output_size (int): Number of output neurons.
+
+        """
+        if method == "Xavier":
+            return np.random.randn(input_size, output_size) * np.sqrt(1 / input_size)
+        else:  # Default: Random small values
+            return np.random.randn(input_size, output_size) * 0.01
     
     def set_optimizer(self, optimizer, learning_rate):
-        if(optimizer == 'sgd'):
+        opt_name = optimizer.lower()
+        if(opt_name == 'sgd'):
             return SGDOptimizer(learning_rate)
+        elif(opt_name == 'momentum'):
+            return MomentumOptimizer(learning_rate, self.momentum)
+        elif(opt_name == 'nesterov'):
+            return NesterovOptimizer(learning_rate, self.momentum)
         else:
             return SGDOptimizer(learning_rate)
 
@@ -91,28 +109,73 @@ class FeedforwardNN:
         # b shape : 1*layer_size_l+1
         # outputs a probability distribution over the 10 classes
         self.a = [x]
+        self.z = []  # Store pre-activation values
+
         for i in range(len(self.layers) - 1):
-            x = self.activate(np.dot(x, self.layers[i]) + self.biases[i])
+            z = np.dot(x, self.layers[i]) + self.biases[i]
+            self.z.append(z)  # Store z before activation
+            x = self.activate(z)
             self.a.append(x)
-        x = self.softmax(np.dot(x, self.layers[-1]) + self.biases[-1])
+
+        z = np.dot(x, self.layers[-1]) + self.biases[-1]
+        self.z.append(z)
+        x = self.softmax(z)  # Softmax activation for output
         self.a.append(x)
+
         return x
+
     
-    def backward(self, y):
-        m = y.shape[0]
-        da = self.a[-1] - y
-        grads = {'dw': [], 'db': []}
+    # def backward(self, y):
+    #     m = y.shape[0]
+    #     da = self.a[-1] - y
+    #     grads = {'dw': [], 'db': []}
         
-        for i in range(len(self.layers) - 1, -1, -1):
+    #     for i in range(len(self.layers) - 1, -1, -1):
+    #         dw = np.dot(self.a[i].T, da) / m
+    #         db = np.sum(da, axis=0, keepdims=True) / m
+    #         grads['dw'].insert(0, dw)
+    #         grads['db'].insert(0, db)
+
+    #         if i > 0:
+    #             da = np.dot(da, self.layers[i].T) * self.activate_derivative(self.a[i])
+        
+    #     self.optimizer.update(self.layers, self.biases, grads)
+
+    def backward(self, y, lookahead=False):
+        """
+        Compute gradients.
+        If lookahead=True (for Nesterov), temporarily shift weights before computing gradients.
+        """
+        m = y.shape[0]
+        grads = {'dw': [], 'db': []}
+
+        # Ensure optimizer has initialized velocities before using them
+        if isinstance(self.optimizer, NesterovOptimizer):
+            if self.optimizer.velocity_w is None:
+                self.optimizer.velocity_w = [np.zeros_like(w) for w in self.layers]
+                self.optimizer.velocity_b = [np.zeros_like(b) for b in self.biases]
+
+        # Use modified weights if lookahead is enabled for Nesterov
+        if lookahead and isinstance(self.optimizer, NesterovOptimizer):
+            layers_to_use = [w - self.optimizer.momentum * v for w, v in zip(self.layers, self.optimizer.velocity_w)]
+            # biases_to_use = [b - self.optimizer.momentum * v for b, v in zip(self.biases, self.optimizer.velocity_b)]
+        else:
+            layers_to_use = self.layers
+            # biases_to_use = self.biases
+
+        # Compute activations at the selected position
+        da = self.a[-1] - y
+
+        for i in range(len(layers_to_use) - 1, -1, -1):
             dw = np.dot(self.a[i].T, da) / m
             db = np.sum(da, axis=0, keepdims=True) / m
             grads['dw'].insert(0, dw)
             grads['db'].insert(0, db)
 
             if i > 0:
-                da = np.dot(da, self.layers[i].T) * self.activate_derivative(self.a[i])
-        
-        self.optimizer.update(self.layers, self.biases, grads)
+                da = np.dot(da, layers_to_use[i].T) * (self.activate_derivative(self.z[i-1]))
+
+        return grads
 
     def compute_accuracy(self, y_pred, y_true):
         y_pred_labels = np.argmax(y_pred, axis=1)
@@ -120,14 +183,28 @@ class FeedforwardNN:
         return np.mean(y_pred_labels == y_true_labels)
 
     def train(self, X_train, y_train, X_val, y_val, epochs=10, batch_size=64):
+        if(isinstance(self.optimizer, SGDOptimizer)):
+            batch_size = 1
         for epoch in range(epochs):
-            for i in range(0, X_train.shape[0], batch_size):
+            num_samples = X_train.shape[0]
+            
+            # Shuffle data before each epoch
+            indices = np.arange(num_samples)
+            np.random.shuffle(indices)
+            X_train, y_train = X_train[indices], y_train[indices]
+
+            for i in range(0, num_samples, batch_size):
                 X_batch = X_train[i:i+batch_size]
                 y_batch = y_train[i:i+batch_size]
-                
+                # Forward pass
                 self.forward(X_batch)
-                self.backward(y_batch)
-            
+
+                # Check if optimizer is Nesterov (lookahead required)
+                lookahead = isinstance(self.optimizer, NesterovOptimizer)
+                # Backward pass: computes grads (with or without lookahead)
+                grads = self.backward(y_batch, lookahead=lookahead)
+                self.optimizer.update(self.layers, self.biases, grads)
+
             # Compute Loss and Accuracy
             y_train_pred = self.forward(X_train)
             train_loss = -np.mean(y_train * np.log(y_train_pred + 1e-8))
@@ -159,38 +236,37 @@ class FeedforwardNN:
         print(f"Output Layer: {self.layers[-1].shape[1]} neurons (Softmax activation)")
         print("---------------------------------")
 
+# Load dataset
 (x_train, y_train), (x_test, y_test) = fashion_mnist.load_data()
 
 X_train = x_train.reshape(x_train.shape[0], -1) / 255.0
-y_train = pd.get_dummies(y_train).values
 X_test = x_test.reshape(x_test.shape[0], -1) / 255.0
-y_test = y_test
+y_train = pd.get_dummies(y_train).values
 
-# number of epochs: 5, 10
-# number of hidden layers: 3, 4, 5
-# size of every hidden layer: 32, 64, 128
-# weight decay (L2 regularisation): 0, 0.0005, 0.5
-# learning rate: 1e-3, 1 e-4
-# optimizer: sgd, momentum, nesterov, rmsprop, adam, nadam
-# batch size: 16, 32, 64
-# weight initialisation: random, Xavier
-# activation functions: sigmoid, tanh, ReLU
+# Shuffle indices
+num_samples = X_train.shape[0]
+indices = np.arange(num_samples)
+np.random.shuffle(indices)
 
-val_split = int(0.9 * X_train.shape[0])
-X_val, y_val = X_train[val_split:], y_train[val_split:]
-X_train, y_train = X_train[:val_split], y_train[:val_split]
+# Split data into training and validation sets (90%-10%)
+val_split = int(0.9 * num_samples)
+train_indices, val_indices = indices[:val_split], indices[val_split:]
+X_train, X_val = X_train[train_indices], X_train[val_indices]
+y_train, y_val = y_train[train_indices], y_train[val_indices]
 
 # Sweep Configuration
 sweep_config = {
-    "method": "grid",
-    "metric": {"name": "val_loss", "goal": "minimize"},
+    "method": "bayes",
+    "metric": {"name": "val_accuracy", "goal": "maximize"},
     "parameters": {
         "learning_rate": {"values": [0.0001, 0.001, 0.01]},
-        "hidden_layers": {"values": [[64], [128, 64], [256, 128, 64]]},
         "activation": {"values": ["relu", "sigmoid", "tanh"]},
-        "optimizer": {"values": ["sgd"]},
+        "optimizer": {"values": ["sgd", "momentum", "nesterov"]},
         "epochs": {"values": [5, 10]},
-        "batch_size": {"values": [32, 64]}
+        "num_hidden": {"values": [3, 4]},
+        "hidden_size": {"values": [32, 64]},
+        "weight_init": {"values": ["random", "xavier"]},
+        "batch_size": {"values": [16, 32]}
     }
 }
 
@@ -199,12 +275,11 @@ sweep_id = wandb.sweep(sweep_config, project="DA6401 Assignments")
 def train_sweep():
     run = wandb.init(project="DA6401 Assignments", entity="da24m010-indian-institute-of-technology-madras") 
     config = wandb.config 
-    run.name = f"LR_{config.learning_rate}_HL_{config.hidden_layers}_OPT_{config.optimizer}"
+    run.name = f"LR_{config.learning_rate}_HL_{config.num_hidden}_HLS_{config.hidden_size}_OPT_{config.optimizer}_ACTIVATION_{config.activation}_NUM_EPOCHS_{config.epochs}_BATCH_SIZE_{config.batch_size}_W_INIT_{config.weight_init}"
 
+    model = FeedforwardNN(num_layers=config.num_hidden, hidden_size=config.hidden_size, learning_rate=config.learning_rate,
+                          activation=config.activation, optimizer=config.optimizer, weight_init=config.weight_init)
 
-    model = FeedforwardNN(input_size=28*28, hidden_layers=config.hidden_layers, learning_rate=config.learning_rate,
-                          activation=config.activation, optimizer= config.optimizer)
-    
-    model.train(X_train, y_train, X_val, y_val, epochs=config.epochs, batch_size=64)
+    model.train(X_train, y_train, X_val, y_val, epochs=config.epochs, batch_size=config.batch_size)
 
 wandb.agent(sweep_id, function=train_sweep)
