@@ -8,7 +8,7 @@ class FeedforwardNN:
     # Implement a feedforward neural network which takes images from the fashion-mnist data as input and outputs a probability distribution over the 10 classes.
     # Your code should be flexible such that it is easy to change the number of hidden layers and the number of neurons in each hidden layer.
     def __init__(self, num_layers=1, hidden_size=64, learning_rate=0.01, momentum = 0.9, activation='relu', optimizer=None, 
-                 weight_init="random", beta = 0.9, epsilon = 1e-8, beta1 = 0.9, beta2 = 0.9):
+                 weight_init="random", beta = 0.9, epsilon = 1e-8, beta1 = 0.9, beta2 = 0.9, weight_decay = 0.0):
         self.layers = []
         self.biases = []
         # Output size for fashion mnist and mnist
@@ -26,6 +26,7 @@ class FeedforwardNN:
         self.beta1 = beta1
         self.beta2 = beta2
         self.epsilon = epsilon
+        self.weight_decay = weight_decay
 
         for _ in range(num_layers):
             self.layers.append(self.initialize_weights(weight_init, prev_size, hidden_size))
@@ -57,19 +58,19 @@ class FeedforwardNN:
     def set_optimizer(self, optimizer, learning_rate):
         opt_name = optimizer.lower()
         if(opt_name == 'sgd'):
-            return SGDOptimizer(learning_rate)
+            return SGDOptimizer(learning_rate, self.weight_decay)
         elif(opt_name == 'momentum'):
-            return MomentumOptimizer(learning_rate, self.momentum)
+            return MomentumOptimizer(learning_rate, self.momentum, self.weight_decay)
         elif(opt_name == 'nesterov'):
-            return NesterovOptimizer(learning_rate, self.momentum)
+            return NesterovOptimizer(learning_rate, self.momentum, self.weight_decay)
         elif(opt_name == 'rmsprop'):
-            return RMSpropOptimizer(learning_rate, self.beta, self.epsilon)
+            return RMSpropOptimizer(learning_rate, self.beta, self.epsilon, self.weight_decay)
         elif(opt_name == 'adam'):
-            return AdamOptimizer(learning_rate, self.beta1, self.beta2, self.epsilon)
+            return AdamOptimizer(learning_rate, self.beta1, self.beta2, self.epsilon, self.weight_decay)
         elif(opt_name == 'nadam'):
-            return NAdamOptimizer(learning_rate, self.beta1, self.beta2, self.epsilon)
+            return NAdamOptimizer(learning_rate, self.beta1, self.beta2, self.epsilon, self.weight_decay)
         else:
-            return SGDOptimizer(learning_rate)
+            return SGDOptimizer(learning_rate, self.weight_decay)
 
     def relu(self, x):
         return np.maximum(0, x)
@@ -134,23 +135,6 @@ class FeedforwardNN:
         self.a.append(x)
 
         return x
-
-    
-    # def backward(self, y):
-    #     m = y.shape[0]
-    #     da = self.a[-1] - y
-    #     grads = {'dw': [], 'db': []}
-        
-    #     for i in range(len(self.layers) - 1, -1, -1):
-    #         dw = np.dot(self.a[i].T, da) / m
-    #         db = np.sum(da, axis=0, keepdims=True) / m
-    #         grads['dw'].insert(0, dw)
-    #         grads['db'].insert(0, db)
-
-    #         if i > 0:
-    #             da = np.dot(da, self.layers[i].T) * self.activate_derivative(self.a[i])
-        
-    #     self.optimizer.update(self.layers, self.biases, grads)
 
     def backward(self, y, lookahead=False):
         """
@@ -277,7 +261,8 @@ sweep_config = {
         "num_hidden": {"values": [3, 4]},
         "hidden_size": {"values": [32, 64]},
         "weight_init": {"values": ["random", "xavier"]},
-        "batch_size": {"values": [16, 32]}
+        "batch_size": {"values": [16, 32]},
+        "weight_decay": {"values": [0.0, 0.0005, 0.5]}
     }
 }
 
