@@ -52,4 +52,108 @@ class NesterovOptimizer:
             layers[i] += self.momentum * self.velocity_w[i] - self.learning_rate * grads['dw'][i]
             biases[i] += self.momentum * self.velocity_b[i] - self.learning_rate * grads['db'][i]
 
+class RMSpropOptimizer:
+    def __init__(self, learning_rate=0.001, beta=0.9, epsilon=1e-8):
+        self.learning_rate = learning_rate
+        # beta for RMSprop
+        self.beta = beta
+        # epsilon for RMSprop
+        self.epsilon = epsilon
+        self.squared_gradients_w = None
+        self.squared_gradients_b = None
 
+    def update(self, layers, biases, grads):
+        if self.squared_gradients_w is None:
+            self.squared_gradients_w = [np.zeros_like(w) for w in layers]
+            self.squared_gradients_b = [np.zeros_like(b) for b in biases]
+
+        for i in range(len(layers)):
+            # Update moving average of squared gradients
+            self.squared_gradients_w[i] = (
+                self.beta * self.squared_gradients_w[i] + (1 - self.beta) * np.square(grads['dw'][i])
+            )
+            self.squared_gradients_b[i] = (
+                self.beta * self.squared_gradients_b[i] + (1 - self.beta) * np.square(grads['db'][i])
+            )
+
+            # Weight and bias updates
+            layers[i] -= (self.learning_rate / np.sqrt(self.squared_gradients_w[i] + self.epsilon)) * grads['dw'][i]
+            biases[i] -= (self.learning_rate / np.sqrt(self.squared_gradients_b[i] + self.epsilon)) * grads['db'][i]
+
+class AdamOptimizer:
+    def __init__(self, learning_rate=0.001, beta1=0.9, beta2=0.999, epsilon=1e-8):
+        self.learning_rate = learning_rate
+        self.beta1 = beta1  
+        self.beta2 = beta2
+        self.epsilon = epsilon
+        self.m_w = None 
+        self.v_w = None 
+        self.m_b = None  
+        self.v_b = None
+        self.t = 0  # Time step
+
+    def update(self, layers, biases, grads):
+        if self.m_w is None:
+            self.m_w = [np.zeros_like(w) for w in layers]
+            self.v_w = [np.zeros_like(w) for w in layers]
+            self.m_b = [np.zeros_like(b) for b in biases]
+            self.v_b = [np.zeros_like(b) for b in biases]
+
+        self.t += 1 
+
+        for i in range(len(layers)):
+            self.m_w[i] = self.beta1 * self.m_w[i] + (1 - self.beta1) * grads['dw'][i]
+            self.m_b[i] = self.beta1 * self.m_b[i] + (1 - self.beta1) * grads['db'][i]
+
+            self.v_w[i] = self.beta2 * self.v_w[i] + (1 - self.beta2) * np.square(grads['dw'][i])
+            self.v_b[i] = self.beta2 * self.v_b[i] + (1 - self.beta2) * np.square(grads['db'][i])
+
+            # Bias correction 
+            m_w_hat = self.m_w[i] / (1 - self.beta1 ** self.t)
+            m_b_hat = self.m_b[i] / (1 - self.beta1 ** self.t)
+            v_w_hat = self.v_w[i] / (1 - self.beta2 ** self.t)
+            v_b_hat = self.v_b[i] / (1 - self.beta2 ** self.t)
+
+            layers[i] -= (self.learning_rate / (np.sqrt(v_w_hat) + self.epsilon)) * m_w_hat
+            biases[i] -= (self.learning_rate / (np.sqrt(v_b_hat) + self.epsilon)) * m_b_hat
+
+class NAdamOptimizer:
+    def __init__(self, learning_rate=0.001, beta1=0.9, beta2=0.999, epsilon=1e-8):
+        self.learning_rate = learning_rate
+        self.beta1 = beta1 
+        self.beta2 = beta2 
+        self.epsilon = epsilon
+        self.m_w = None 
+        self.v_w = None 
+        self.m_b = None  
+        self.v_b = None 
+        self.t = 0 
+
+    def update(self, layers, biases, grads):
+        if self.m_w is None:
+            self.m_w = [np.zeros_like(w) for w in layers]
+            self.v_w = [np.zeros_like(w) for w in layers]
+            self.m_b = [np.zeros_like(b) for b in biases]
+            self.v_b = [np.zeros_like(b) for b in biases]
+
+        self.t += 1 
+
+        for i in range(len(layers)):
+            self.m_w[i] = self.beta1 * self.m_w[i] + (1 - self.beta1) * grads['dw'][i]
+            self.m_b[i] = self.beta1 * self.m_b[i] + (1 - self.beta1) * grads['db'][i]
+
+            self.v_w[i] = self.beta2 * self.v_w[i] + (1 - self.beta2) * np.square(grads['dw'][i])
+            self.v_b[i] = self.beta2 * self.v_b[i] + (1 - self.beta2) * np.square(grads['db'][i])
+
+            # Bias correction 
+            m_w_hat = self.m_w[i] / (1 - self.beta1 ** self.t)
+            m_b_hat = self.m_b[i] / (1 - self.beta1 ** self.t)
+            v_w_hat = self.v_w[i] / (1 - self.beta2 ** self.t)
+            v_b_hat = self.v_b[i] / (1 - self.beta2 ** self.t)
+
+            # Nadam modification: Nesterov momentum applied to m_hat
+            m_w_nesterov = self.beta1 * m_w_hat + ((1 - self.beta1)/(1 - self.beta1 ** (self.t+1))) * grads['dw'][i]
+            m_b_nesterov = self.beta1 * m_b_hat + ((1 - self.beta1)/(1 - self.beta1 ** (self.t+1))) * grads['db'][i]
+
+            layers[i] -= (self.learning_rate / (np.sqrt(v_w_hat) + self.epsilon)) * m_w_nesterov
+            biases[i] -= (self.learning_rate / (np.sqrt(v_b_hat) + self.epsilon)) * m_b_nesterov

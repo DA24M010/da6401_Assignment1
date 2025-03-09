@@ -7,7 +7,8 @@ from optimizer import *
 class FeedforwardNN:
     # Implement a feedforward neural network which takes images from the fashion-mnist data as input and outputs a probability distribution over the 10 classes.
     # Your code should be flexible such that it is easy to change the number of hidden layers and the number of neurons in each hidden layer.
-    def __init__(self, num_layers=1, hidden_size=64, learning_rate=0.01, momentum = 0.9, activation='relu', optimizer=None, weight_init="random"):
+    def __init__(self, num_layers=1, hidden_size=64, learning_rate=0.01, momentum = 0.9, activation='relu', optimizer=None, 
+                 weight_init="random", beta = 0.9, epsilon = 1e-8, beta1 = 0.9, beta2 = 0.9):
         self.layers = []
         self.biases = []
         # Output size for fashion mnist and mnist
@@ -21,6 +22,10 @@ class FeedforwardNN:
         self.activation = activation
         self.momentum = momentum
         self.optimizer = optimizer if optimizer == None else self.set_optimizer(optimizer, learning_rate)
+        self.beta = beta
+        self.beta1 = beta1
+        self.beta2 = beta2
+        self.epsilon = epsilon
 
         for _ in range(num_layers):
             self.layers.append(self.initialize_weights(weight_init, prev_size, hidden_size))
@@ -57,6 +62,12 @@ class FeedforwardNN:
             return MomentumOptimizer(learning_rate, self.momentum)
         elif(opt_name == 'nesterov'):
             return NesterovOptimizer(learning_rate, self.momentum)
+        elif(opt_name == 'rmsprop'):
+            return RMSpropOptimizer(learning_rate, self.beta, self.epsilon)
+        elif(opt_name == 'adam'):
+            return AdamOptimizer(learning_rate, self.beta1, self.beta2, self.epsilon)
+        elif(opt_name == 'nadam'):
+            return NAdamOptimizer(learning_rate, self.beta1, self.beta2, self.epsilon)
         else:
             return SGDOptimizer(learning_rate)
 
