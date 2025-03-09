@@ -1,6 +1,7 @@
 import numpy as np
 import pandas as pd
 from keras.datasets import fashion_mnist
+from keras.datasets import mnist
 import wandb
 from optimizer import *
 
@@ -41,18 +42,10 @@ class FeedforwardNN:
             print(f"Layer {i}: {self.layers[i].shape}, Bias: {self.biases[i].shape}")
     
     def initialize_weights(self, method, input_size, output_size):
-        """
-        Initializes weights based on the given method.
-        
-        Args:
-            method (str): "random" or "Xavier".
-            input_size (int): Number of input neurons.
-            output_size (int): Number of output neurons.
-
-        """
         if method == "Xavier":
             return np.random.randn(input_size, output_size) * np.sqrt(1 / input_size)
-        else:  # Default: Random small values
+        else:  
+            # Default: Random small values
             return np.random.randn(input_size, output_size) * 0.01
     
     def set_optimizer(self, optimizer, learning_rate):
@@ -103,7 +96,7 @@ class FeedforwardNN:
         elif self.activation == 'tanh':
             return self.tanh(x)
         else:
-            raise ValueError("Unsupported activation function")
+            return self.relu(x)
     
     def activate_derivative(self, x):
         if self.activation == 'relu':
@@ -113,7 +106,7 @@ class FeedforwardNN:
         elif self.activation == 'tanh':
             return self.tanh_derivative(x)
         else:
-            raise ValueError("Unsupported activation function")
+            return self.relu_derivative(x)
 
     def forward(self, x):
         # X shape : m, input_size_l
@@ -176,21 +169,45 @@ class FeedforwardNN:
         y_pred_labels = np.argmax(y_pred, axis=1)
         y_true_labels = np.argmax(y_true, axis=1)
         return np.mean(y_pred_labels == y_true_labels)
+    
+    def load_data(self, dataset, split = 0.9):
+        if(dataset.lower() == 'fashion_mnist'):
+            (x_train, y_train), (x_test, _) = fashion_mnist.load_data()
+        else:
+            (x_train, y_train), (x_test, _) = mnist.load_data()
 
-    def train(self, X_train, y_train, X_val, y_val, epochs=10, batch_size=64):
+        X_train = x_train.reshape(x_train.shape[0], -1) / 255.0
+        X_test = x_test.reshape(x_test.shape[0], -1) / 255.0
+        y_train = pd.get_dummies(y_train).values
+        
+        # Shuffle indices
+        num_samples = X_train.shape[0]
+        indices = np.arange(num_samples)
+        np.random.shuffle(indices)
+
+        # Split data into training and validation sets (as per split percentage)
+        val_split = int(split * num_samples)
+        train_indices, val_indices = indices[:val_split], indices[val_split:]
+        X_train, X_val = X_train[train_indices], X_train[val_indices]
+        y_train, y_val = y_train[train_indices], y_train[val_indices]
+
+        return X_train, X_val, X_test, y_train, y_val
+    
+    def train(self, epochs=10, batch_size=64, dataset = 'fashion_mnist'):
+        self.X_train, self.X_val, self.X_test, self.y_train, self.y_val = self.load_data(dataset, split = 0.9)
         if(isinstance(self.optimizer, SGDOptimizer)):
             batch_size = 1
         for epoch in range(epochs):
-            num_samples = X_train.shape[0]
+            num_samples = self.X_train.shape[0]
             
             # Shuffle data before each epoch
             indices = np.arange(num_samples)
             np.random.shuffle(indices)
-            X_train, y_train = X_train[indices], y_train[indices]
+            self.X_train, self.y_train = self.X_train[indices], self.y_train[indices]
 
             for i in range(0, num_samples, batch_size):
-                X_batch = X_train[i:i+batch_size]
-                y_batch = y_train[i:i+batch_size]
+                X_batch = self.X_train[i:i+batch_size]
+                y_batch = self.y_train[i:i+batch_size]
                 # Forward pass
                 self.forward(X_batch)
 
@@ -201,13 +218,13 @@ class FeedforwardNN:
                 self.optimizer.update(self.layers, self.biases, grads)
 
             # Compute Loss and Accuracy
-            y_train_pred = self.forward(X_train)
-            train_loss = -np.mean(y_train * np.log(y_train_pred + 1e-8))
-            train_accuracy = self.compute_accuracy(y_train_pred, y_train)
+            y_train_pred = self.forward(self.X_train)
+            train_loss = -np.mean(self.y_train * np.log(y_train_pred + 1e-8))
+            train_accuracy = self.compute_accuracy(y_train_pred, self.y_train)
 
-            y_val_pred = self.forward(X_val)
-            val_loss = -np.mean(y_val * np.log(y_val_pred + 1e-8))
-            val_accuracy = self.compute_accuracy(y_val_pred, y_val)
+            y_val_pred = self.forward(self.X_val)
+            val_loss = -np.mean(self.y_val * np.log(y_val_pred + 1e-8))
+            val_accuracy = self.compute_accuracy(y_val_pred, self.y_val)
 
             # Log metrics to W&B
             wandb.log({
@@ -254,14 +271,14 @@ sweep_config = {
     "method": "bayes",
     "metric": {"name": "val_accuracy", "goal": "maximize"},
     "parameters": {
-        "learning_rate": {"values": [0.0001, 0.001, 0.01]},
-        "activation": {"values": ["relu", "sigmoid", "tanh"]},
-        "optimizer": {"values": ["sgd", "momentum", "nesterov"]},
+        "learning_rate": {"values": [0.001, 0.0001]},
+        "activation": {"values": ["sigmoid", "tanh", "relu"]},
+        "optimizer": {"values": ["sgd", "momentum", "nesterov", "rmsprop", "adam", "nadam"]},
         "epochs": {"values": [5, 10]},
-        "num_hidden": {"values": [3, 4]},
+        "num_hidden": {"values": [3, 4, 5]},
         "hidden_size": {"values": [32, 64]},
         "weight_init": {"values": ["random", "xavier"]},
-        "batch_size": {"values": [16, 32]},
+        "batch_size": {"values": [16, 32, 64]},
         "weight_decay": {"values": [0.0, 0.0005, 0.5]}
     }
 }
@@ -276,6 +293,6 @@ def train_sweep():
     model = FeedforwardNN(num_layers=config.num_hidden, hidden_size=config.hidden_size, learning_rate=config.learning_rate,
                           activation=config.activation, optimizer=config.optimizer, weight_init=config.weight_init)
 
-    model.train(X_train, y_train, X_val, y_val, epochs=config.epochs, batch_size=config.batch_size)
+    model.train(epochs=config.epochs, batch_size=config.batch_size, dataset = "fashion_mnist")
 
 wandb.agent(sweep_id, function=train_sweep)
