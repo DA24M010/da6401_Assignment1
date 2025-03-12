@@ -4,11 +4,14 @@ from keras.datasets import fashion_mnist
 from keras.datasets import mnist
 import wandb
 from optimizer import *
+import seaborn as sns
+import matplotlib.pyplot as plt
+from sklearn.metrics import confusion_matrix
 
 class FeedforwardNN:
     # Implement a feedforward neural network which takes images from the fashion-mnist data as input and outputs a probability distribution over the 10 classes.
     # Your code should be flexible such that it is easy to change the number of hidden layers and the number of neurons in each hidden layer.
-    def __init__(self, num_layers=1, hidden_size=64, learning_rate=0.01, momentum = 0.9, activation='relu', optimizer=None, 
+    def __init__(self, num_layers=1, hidden_size=64, learning_rate=0.01, momentum = 0.9, activation='relu', optimizer=None, loss_function = "cross_entropy",
                  weight_init="random", beta = 0.9, epsilon = 1e-8, beta1 = 0.9, beta2 = 0.9, weight_decay = 0.0):
         self.layers = []
         self.biases = []
@@ -20,15 +23,16 @@ class FeedforwardNN:
         self.num_layers = num_layers
         self.hidden_size = hidden_size
         self.weight_init = weight_init
-        self.activation = activation
+        self.activation = activation.lower()
+        self.loss_function = loss_function.lower()
         self.momentum = momentum
-        self.optimizer = optimizer if optimizer == None else self.set_optimizer(optimizer, learning_rate)
         self.beta = beta
         self.beta1 = beta1
         self.beta2 = beta2
         self.epsilon = epsilon
         self.weight_decay = weight_decay
-
+        self.optimizer = optimizer if optimizer == None else self.set_optimizer(optimizer, learning_rate)
+        
         for _ in range(num_layers):
             self.layers.append(self.initialize_weights(weight_init, prev_size, hidden_size))
             self.biases.append(np.zeros((1, hidden_size)))
@@ -36,10 +40,10 @@ class FeedforwardNN:
 
         self.layers.append(self.initialize_weights(weight_init, prev_size, self.output_size))
         self.biases.append(np.zeros((1, self.output_size)))
-        
+        self.data_loaded = False
         # # Print layer sizes
-        for i in range(len(self.layers)):
-            print(f"Layer {i}: {self.layers[i].shape}, Bias: {self.biases[i].shape}")
+        # for i in range(len(self.layers)):
+        #     print(f"Layer {i}: {self.layers[i].shape}, Bias: {self.biases[i].shape}")
     
     def initialize_weights(self, method, input_size, output_size):
         if method == "Xavier":
@@ -50,20 +54,18 @@ class FeedforwardNN:
     
     def set_optimizer(self, optimizer, learning_rate):
         opt_name = optimizer.lower()
-        if(opt_name == 'sgd'):
-            return SGDOptimizer(learning_rate, self.weight_decay)
-        elif(opt_name == 'momentum'):
-            return MomentumOptimizer(learning_rate, self.momentum, self.weight_decay)
-        elif(opt_name == 'nesterov'):
-            return NesterovOptimizer(learning_rate, self.momentum, self.weight_decay)
-        elif(opt_name == 'rmsprop'):
-            return RMSpropOptimizer(learning_rate, self.beta, self.epsilon, self.weight_decay)
-        elif(opt_name == 'adam'):
-            return AdamOptimizer(learning_rate, self.beta1, self.beta2, self.epsilon, self.weight_decay)
-        elif(opt_name == 'nadam'):
-            return NAdamOptimizer(learning_rate, self.beta1, self.beta2, self.epsilon, self.weight_decay)
-        else:
-            return SGDOptimizer(learning_rate, self.weight_decay)
+        optimizers = {
+            'sgd': SGDOptimizer(learning_rate, self.weight_decay),
+            'momentum': MomentumOptimizer(learning_rate, self.momentum, self.weight_decay),
+            'nesterov': NesterovOptimizer(learning_rate, self.momentum, self.weight_decay),
+            'rmsprop': RMSpropOptimizer(learning_rate, self.beta, self.epsilon, self.weight_decay),
+            'adam': AdamOptimizer(learning_rate, self.beta1, self.beta2, self.epsilon, self.weight_decay),
+            'nadam': NAdamOptimizer(learning_rate, self.beta1, self.beta2, self.epsilon, self.weight_decay)
+        }
+
+        # Return the corresponding optimizer, defaulting to SGD if not found
+        return optimizers.get(opt_name, SGDOptimizer(learning_rate, self.weight_decay))
+
 
     def relu(self, x):
         return np.maximum(0, x)
@@ -143,7 +145,6 @@ class FeedforwardNN:
                 self.optimizer.velocity_w = [np.zeros_like(w) for w in self.layers]
                 self.optimizer.velocity_b = [np.zeros_like(b) for b in self.biases]
 
-        # Use modified weights if lookahead is enabled for Nesterov
         if lookahead and isinstance(self.optimizer, NesterovOptimizer):
             layers_to_use = [w - self.optimizer.momentum * v for w, v in zip(self.layers, self.optimizer.velocity_w)]
             # biases_to_use = [b - self.optimizer.momentum * v for b, v in zip(self.biases, self.optimizer.velocity_b)]
@@ -151,8 +152,11 @@ class FeedforwardNN:
             layers_to_use = self.layers
             # biases_to_use = self.biases
 
-        # Compute activations at the selected position
-        da = self.a[-1] - y
+        # Compute output layer gradient based on the loss function
+        if self.loss_function == "cross_entropy":
+            da = self.a[-1] - y
+        elif self.loss_function == "mse":
+            da = 2 * (self.a[-1] - y) / m  
 
         for i in range(len(layers_to_use) - 1, -1, -1):
             dw = np.dot(self.a[i].T, da) / m
@@ -171,15 +175,22 @@ class FeedforwardNN:
         return np.mean(y_pred_labels == y_true_labels)
     
     def load_data(self, dataset, split = 0.9):
+        self.data_loaded = True
         if(dataset.lower() == 'fashion_mnist'):
-            (x_train, y_train), (x_test, _) = fashion_mnist.load_data()
+            (x_train, y_train), (x_test, y_test) = fashion_mnist.load_data()
+            class_names = [
+                "T-shirt/top", "Trouser", "Pullover", "Dress", "Coat",
+                "Sandal", "Shirt", "Sneaker", "Bag", "Ankle boot"
+            ]
         else:
-            (x_train, y_train), (x_test, _) = mnist.load_data()
+            (x_train, y_train), (x_test, y_test) = mnist.load_data()
+            class_names = ["0", "1", "2", "3", "4", "5", "6", "7", "8", "9"]
 
         X_train = x_train.reshape(x_train.shape[0], -1) / 255.0
         X_test = x_test.reshape(x_test.shape[0], -1) / 255.0
         y_train = pd.get_dummies(y_train).values
-        
+        y_test = pd.get_dummies(y_test).values
+
         # Shuffle indices
         num_samples = X_train.shape[0]
         indices = np.arange(num_samples)
@@ -191,10 +202,10 @@ class FeedforwardNN:
         X_train, X_val = X_train[train_indices], X_train[val_indices]
         y_train, y_val = y_train[train_indices], y_train[val_indices]
 
-        return X_train, X_val, X_test, y_train, y_val
+        return X_train, X_val, X_test, y_train, y_val, y_test, class_names
     
-    def train(self, epochs=10, batch_size=64, dataset = 'fashion_mnist'):
-        self.X_train, self.X_val, self.X_test, self.y_train, self.y_val = self.load_data(dataset, split = 0.9)
+    def train(self, epochs=10, batch_size=64, dataset = 'fashion_mnist', wandb_logs = False, log_test = False):
+        self.X_train, self.X_val, self.X_test, self.y_train, self.y_val, self.y_test, self.class_names = self.load_data(dataset, split = 0.9)
         if(isinstance(self.optimizer, SGDOptimizer)):
             batch_size = 1
         for epoch in range(epochs):
@@ -226,19 +237,60 @@ class FeedforwardNN:
             val_loss = -np.mean(self.y_val * np.log(y_val_pred + 1e-8))
             val_accuracy = self.compute_accuracy(y_val_pred, self.y_val)
 
-            # Log metrics to W&B
-            wandb.log({
-                "train_loss": train_loss,
-                "train_accuracy": train_accuracy,
-                "val_loss": val_loss,
-                "val_accuracy": val_accuracy,
-            })
+            if(log_test == False):
+                # Log train and val metrics to W&B
+                if(wandb_logs):
+                    wandb.log({
+                        "train_loss": train_loss,
+                        "train_accuracy": train_accuracy,
+                        "val_loss": val_loss,
+                        "val_accuracy": val_accuracy,
+                        "epoch": epoch
+                    })
 
-            print(f'Epoch [{epoch+1}/{epochs}], '
-                  f'Train Loss: {train_loss:.4f}, Train Acc: {train_accuracy:.4f}, '
-                  f'Val Loss: {val_loss:.4f}, Val Acc: {val_accuracy:.4f}')
+                print(f'Epoch [{epoch+1}/{epochs}], '
+                    f'Train Loss: {train_loss:.4f}, Train Acc: {train_accuracy:.4f}, '
+                    f'Val Loss: {val_loss:.4f}, Val Acc: {val_accuracy:.4f}')
+            else:
+                y_test_pred = self.forward(self.X_test)
+                test_loss = -np.mean(self.y_test * np.log(y_test_pred + 1e-8))
+                test_accuracy = self.compute_accuracy(self.y_test, y_test_pred)
 
+                y_test_labels = np.argmax(self.y_test, axis=1)
+                y_test_preds = np.argmax(y_test_pred, axis=1)
+                
+                cm = confusion_matrix(y_test_labels, y_test_preds)
+                plt.figure(figsize=(20, 16))
+                sns.heatmap(cm, annot=True, fmt=".2f", cmap="coolwarm", 
+                            xticklabels=self.class_names, yticklabels=self.class_names)
+
+                plt.xlabel("Predicted Label")
+                plt.ylabel("True Label")
+                plt.title("Confusion Matrix (Fashion-MNIST)")
+                plt.xticks(rotation=45)
+                plt.yticks(rotation=0)
+
+                if(wandb_logs):
+                    wandb.log({
+                        "test_accuracy": test_accuracy,
+                        "test_confusion_matrix": wandb.plot.confusion_matrix(
+                            probs=None, y_true=y_test_labels, preds=y_test_preds, class_names=self.class_names
+                        ),
+                        "Test Confusion Matrix": wandb.Image(plt),
+                    }, step=epoch)
+
+                print(f'Epoch [{epoch+1}/{epochs}], '
+                    f'Train Loss: {train_loss:.4f}, Train Acc: {train_accuracy:.4f}, '
+                    f'Test Loss: {test_loss:.4f}, Test Acc: {test_accuracy:.4f}')
     
+    def evaluate(self):
+        if(self.data_loaded == False):
+            print("No Test Data to evaluate!!!")
+        else:
+            y_test_pred = self.forward(self.X_test)
+            test_accuracy = self.compute_accuracy(self.y_test, y_test_pred)
+            print("Test Accuracy :", test_accuracy*100.0)
+
     def summary(self):
         print("Model Summary:")
         print("---------------------------------")
@@ -247,52 +299,3 @@ class FeedforwardNN:
             print(f"Hidden Layer {i+1}: {hidden_size} neurons, Activation: {self.activation}")
         print(f"Output Layer: {self.layers[-1].shape[1]} neurons (Softmax activation)")
         print("---------------------------------")
-
-# Load dataset
-(x_train, y_train), (x_test, y_test) = fashion_mnist.load_data()
-
-X_train = x_train.reshape(x_train.shape[0], -1) / 255.0
-X_test = x_test.reshape(x_test.shape[0], -1) / 255.0
-y_train = pd.get_dummies(y_train).values
-
-# Shuffle indices
-num_samples = X_train.shape[0]
-indices = np.arange(num_samples)
-np.random.shuffle(indices)
-
-# Split data into training and validation sets (90%-10%)
-val_split = int(0.9 * num_samples)
-train_indices, val_indices = indices[:val_split], indices[val_split:]
-X_train, X_val = X_train[train_indices], X_train[val_indices]
-y_train, y_val = y_train[train_indices], y_train[val_indices]
-
-# Sweep Configuration
-sweep_config = {
-    "method": "bayes",
-    "metric": {"name": "val_accuracy", "goal": "maximize"},
-    "parameters": {
-        "learning_rate": {"values": [0.001, 0.0001]},
-        "activation": {"values": ["sigmoid", "tanh", "relu"]},
-        "optimizer": {"values": ["sgd", "momentum", "nesterov", "rmsprop", "adam", "nadam"]},
-        "epochs": {"values": [5, 10]},
-        "num_hidden": {"values": [3, 4, 5]},
-        "hidden_size": {"values": [32, 64]},
-        "weight_init": {"values": ["random", "xavier"]},
-        "batch_size": {"values": [16, 32, 64]},
-        "weight_decay": {"values": [0.0, 0.0005, 0.5]}
-    }
-}
-
-sweep_id = wandb.sweep(sweep_config, project="DA6401 Assignments")
-
-def train_sweep():
-    run = wandb.init(project="DA6401 Assignments", entity="da24m010-indian-institute-of-technology-madras") 
-    config = wandb.config 
-    run.name = f"LR_{config.learning_rate}_HL_{config.num_hidden}_HLS_{config.hidden_size}_OPT_{config.optimizer}_ACTIVATION_{config.activation}_NUM_EPOCHS_{config.epochs}_BATCH_SIZE_{config.batch_size}_W_INIT_{config.weight_init}"
-
-    model = FeedforwardNN(num_layers=config.num_hidden, hidden_size=config.hidden_size, learning_rate=config.learning_rate,
-                          activation=config.activation, optimizer=config.optimizer, weight_init=config.weight_init)
-
-    model.train(epochs=config.epochs, batch_size=config.batch_size, dataset = "fashion_mnist")
-
-wandb.agent(sweep_id, function=train_sweep)

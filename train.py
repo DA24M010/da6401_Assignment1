@@ -1,5 +1,7 @@
 import argparse
 from nn import FeedforwardNN
+import wandb
+from optimizer import *
 
 # -wp, --wandb_project	myprojectname	Project name used to track experiments in Weights & Biases dashboard
 # -we, --wandb_entity	myname	Wandb Entity used to track experiments in the Weights & Biases dashboard.
@@ -43,12 +45,12 @@ if(__name__ == '__main__'):
 
     # Learning rate and optimizer parameters
     # parser.add_argument("-lr", "--learning_rate", type=float, default=0.1, help="Learning rate for optimization.")
-    parser.add_argument("-m", "--momentum", type=float, default=0.5, help="Momentum for momentum and nag optimizers.")
-    parser.add_argument("-beta", "--beta", type=float, default=0.5, help="Beta for RMSprop optimizer.")
-    parser.add_argument("-beta1", "--beta1", type=float, default=0.5, help="Beta1 for Adam and Nadam optimizers.")
-    parser.add_argument("-beta2", "--beta2", type=float, default=0.5, help="Beta2 for Adam and Nadam optimizers.")
-    parser.add_argument("-eps", "--epsilon", type=float, default=0.000001, help="Epsilon for optimizers.")
-    parser.add_argument("-w_d", "--weight_decay", type=float, default=0.0, help="Weight decay for optimizers.")
+    # parser.add_argument("-m", "--momentum", type=float, default=0.5, help="Momentum for momentum and nag optimizers.")
+    # parser.add_argument("-beta", "--beta", type=float, default=0.5, help="Beta for RMSprop optimizer.")
+    # parser.add_argument("-beta1", "--beta1", type=float, default=0.5, help="Beta1 for Adam and Nadam optimizers.")
+    # parser.add_argument("-beta2", "--beta2", type=float, default=0.5, help="Beta2 for Adam and Nadam optimizers.")
+    # parser.add_argument("-eps", "--epsilon", type=float, default=0.000001, help="Epsilon for optimizers.")
+    # parser.add_argument("-w_d", "--weight_decay", type=float, default=0.0, help="Weight decay for optimizers.")
 
     # Model architecture
     # parser.add_argument("-w_i", "--weight_init", type=str, choices=["random", "Xavier"], default="random", help="Weight initialization method.")
@@ -57,4 +59,11 @@ if(__name__ == '__main__'):
     # parser.add_argument("-a", "--activation", type=str, choices=["identity", "sigmoid", "tanh", "ReLU"], default="sigmoid", help="Activation function to use.")
 
     args = parser.parse_args()
-    # model = 
+    run = wandb.init(project=args.wandb_project, entity=args.wandb_entity) 
+    run.name = f"LR_{args.learning_rate}_HL_{args.num_hidden}_HLS_{args.hidden_size}_OPT_{args.optimizer}_ACTIVATION_{args.activation}_NUM_EPOCHS_{args.epochs}_BATCH_SIZE_{args.batch_size}_W_INIT_{args.weight_init}_W_DECAY_{args.weight_decay}"
+    model = FeedforwardNN(num_layers=args.num_hidden, hidden_size=args.hidden_size, learning_rate=args.learning_rate,
+                          activation=args.activation, optimizer=args.optimizer, weight_init=args.weight_init, weight_decay=args.weight_decay)
+
+    model.train(epochs=args.epochs, batch_size=args.batch_size, dataset = args.dataset)
+
+

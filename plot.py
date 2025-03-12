@@ -3,31 +3,37 @@ import numpy as np
 import matplotlib.pyplot as plt
 from keras.datasets import fashion_mnist
 
-wandb.init(project="DA6401 Assignments", name="sample_images")
+# Initialize wandb
+wandb.init(project="DA6401 Assignments", name="fashion-mnist sample images")
+(X_train, y_train), (X_test, y_test) = fashion_mnist.load_data()
 
-(train_images, train_labels), (_, _) = fashion_mnist.load_data()
-
-# Class labels in Fashion-MNIST
-class_names = [
-    "T-shirt/top", "Trouser", "Pullover", "Dress", "Coat", 
+# Define class labels
+class_labels = [
+    "T-shirt/top", "Trouser", "Pullover", "Dress", "Coat",
     "Sandal", "Shirt", "Sneaker", "Bag", "Ankle boot"
 ]
+sample_images = {}
+for img, label in zip(X_train, y_train):
+    if label not in sample_images:
+        sample_images[label] = img
+    if len(sample_images) == 10:  # Stop when one sample image for eah class is found
+        break
 
-# Select one image per class
-selected_images = []
-selected_labels = []
-for class_id in range(10):
-    idx = np.where(train_labels == class_id)[0][0]  # Get first occurrence
-    selected_images.append(train_images[idx])
-    selected_labels.append(class_names[class_id])
+# Create a figure for visualization
+fig, axes = plt.subplots(2, 5, figsize=(10, 5))
+fig.suptitle("Fashion-MNIST Sample Images", fontsize=14)
+
+wandb_images = []  # List to store images for wandb logging
+
+for ax, (label, img) in zip(axes.flatten(), sample_images.items()):
+    ax.imshow(img, cmap="gray")
+    ax.set_title(class_labels[label])
+    ax.axis("off")
+
+    # Add to wandb images list
+    wandb_images.append(wandb.Image(img, caption=class_labels[label]))
 
 # Log images to wandb
-wandb_table = wandb.Table(columns=["Class", "Image"])
-for label, img in zip(selected_labels, selected_images):
-    wandb_table.add_data(label, wandb.Image(img))
-
-# Log table to wandb
-wandb.log({"Fashion-MNIST Samples": wandb_table})
-
-# Finish wandb run
+wandb.log({"fashion_mnist_samples": wandb_images})
+plt.show()
 wandb.finish()
