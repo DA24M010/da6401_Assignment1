@@ -64,6 +64,6 @@ if(__name__ == '__main__'):
     model = FeedforwardNN(num_layers=args.num_hidden, hidden_size=args.hidden_size, learning_rate=args.learning_rate,
                           activation=args.activation, optimizer=args.optimizer, weight_init=args.weight_init, weight_decay=args.weight_decay)
 
-    model.train(epochs=args.epochs, batch_size=args.batch_size, dataset = args.dataset)
+    model.train(epochs=args.epochs, batch_size=args.batch_size, dataset = args.dataset, wandb_logs= True)
 
 
