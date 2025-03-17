@@ -46,15 +46,6 @@ WandB sweeps are used to explore various configurations for training the neural 
 WandB will automatically generate plots for the sweeps. Each sweep is given a meaningful name (e.g., 
 `LR_0.001_HL_3_HLS_64_OPT_nadam_ACTIVATION_tanh_NUM_EPOCHS_10_BATCH_SIZE_16_W_INIT_random_W_DECAY_0`) instead of using default WandB names.
 
-## Running the Training Script
-
-The `train.py` script supports various command-line arguments for customizing the training process.
-The script generates training plots(loss, accuracy plots) for the following arguments and log them to the wandb project and entity specified in the command-line.
-
-```bash
-python train.py --wandb_entity myname --wandb_project myprojectname --dataset fashion_mnist --batch_size 128 --epochs 20
-```
-
 ## Installation
 ### 1. Clone the repository:
 ```sh
@@ -72,3 +63,56 @@ Create an account on [W&B](https://wandb.ai/) and log in:
 ```sh
 wandb login
 ```
+
+
+## Running the Training Script
+
+The `train.py` script supports various command-line arguments for customizing the training process.
+The script generates training plots(loss, accuracy plots) for the following arguments and log them to the wandb project and entity specified in the command-line.
+
+```bash
+python train.py --wandb_entity myname --wandb_project myprojectname --dataset fashion_mnist --batch_size 128 --epochs 20
+```
+
+### Evaluating the Model on the Test Set
+
+If you need to evaluate the model on the test set after training, use the `--log_test` argument:
+By default it is set to False.
+
+```bash
+python train.py --wandb_entity myname --wandb_project myprojectname --log_test True
+```
+
+The model training function supports logging using:
+
+```python
+model.train(epochs=args.epochs, batch_size=args.batch_size, dataset=args.dataset, wandb_logs=args.wandb_logs, log_test=args.log_test)
+```
+-  Running the command logs the testing accuracy, test set confusion matrix to wandb.
+- `wandb_logs`: Enables or disables logging results to wandb (default value = True).
+- `log_test`: Enables or disables test set evaluation (default value = False).
+
+### Command-Line Arguments
+
+| Argument | Default Value | Description |
+|----------|--------------|-------------|
+| `-wp`, `--wandb_project` | `myprojectname` | WandB project name for tracking experiments |
+| `-we`, `--wandb_entity` | `myname` | WandB entity name |
+| `-d`, `--dataset` | `fashion_mnist` | Dataset selection (`mnist` or `fashion_mnist`) |
+| `-e`, `--epochs` | `10` | Number of training epochs |
+| `-b`, `--batch_size` | `32` | Batch size |
+| `-l`, `--loss` | `cross_entropy` | Loss function (`mean_squared_error` or `cross_entropy`) |
+| `-o`, `--optimizer` | `nadam` | Optimizer selection |
+| `-lr`, `--learning_rate` | `0.001` | Learning rate |
+| `-m`, `--momentum` | `0.9` | Momentum for momentum-based optimizers |
+| `-beta`, `--beta` | `0.9` | Beta for RMSprop |
+| `-beta1`, `--beta1` | `0.9` | Beta1 for Adam and NADAM |
+| `-beta2`, `--beta2` | `0.999` | Beta2 for Adam and NADAM |
+| `-eps`, `--epsilon` | `0.00000001` | Epsilon for numerical stability |
+| `-w_d`, `--weight_decay` | `0.0` | Weight decay (L2 regularization) |
+| `-w_i`, `--weight_init` | `random` | Weight initialization (`random` or `Xavier`) |
+| `-nhl`, `--num_layers` | `3` | Number of hidden layers |
+| `-sz`, `--hidden_size` | `64` | Number of hidden neurons per layer |
+| `-a`, `--activation` | `tanh` | Activation function (`identity`, `sigmoid`, `tanh`, `ReLU`) |
+| `--wandb_logs` | `True` | Enables or disables WandB logging |
+| `--log_test` | `False` | Enables or disables evaluation on test set |

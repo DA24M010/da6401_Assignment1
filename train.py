@@ -57,6 +57,9 @@ if(__name__ == '__main__'):
     parser.add_argument("-sz", "--hidden_size", type=int, default=64, help="Number of neurons in each hidden layer.")
     parser.add_argument("-a", "--activation", type=str, choices=["identity", "sigmoid", "tanh", "ReLU"], default="tanh", help="Activation function to use.")
 
+    parser.add_argument("--wandb_logs", type=bool, choices=[True, False], default=True, help="Activate wandb logging for train.")
+    parser.add_argument("--log_test", type=bool, choices=[True, False], default=False, help="Activate wvaluation of model on test set.")
+
     args = parser.parse_args()
     run = wandb.init(project=args.wandb_project, entity=args.wandb_entity) 
     run.name = f"LR_{args.learning_rate}_HL_{args.num_layers}_HLS_{args.hidden_size}_OPT_{args.optimizer}_ACTIVATION_{args.activation}_NUM_EPOCHS_{args.epochs}_BATCH_SIZE_{args.batch_size}_W_INIT_{args.weight_init}_W_DECAY_{args.weight_decay}_LOSS_{args.loss}"
@@ -65,6 +68,6 @@ if(__name__ == '__main__'):
                           activation=args.activation, optimizer=args.optimizer, loss_function=args.loss, weight_init=args.weight_init, 
                           beta=args.beta, epsilon=args.epsilon, beta1=args.beta1, beta2=args.beta2, weight_decay=args.weight_decay)
 
-    model.train(epochs=args.epochs, batch_size=args.batch_size, dataset = args.dataset, wandb_logs= True)
+    model.train(epochs=args.epochs, batch_size=args.batch_size, dataset = args.dataset, wandb_logs= args.wandb_logs, log_test=args.log_test)
 
 
