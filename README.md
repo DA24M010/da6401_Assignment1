@@ -5,7 +5,7 @@ Repo for assignment1 submission in DA6401
 https://wandb.ai/da24m010-indian-institute-of-technology-madras/DA6401%20Assignments/reports/DA6401-Assignment-1--VmlldzoxMTU1NDkyNw
 
 ## Github repo line :
-https://github.com/DA24M010/da6401_Assignment1.git
+https://github.com/DA24M010/da6401_Assignment1
 
 ## Project Overview
 This project implements a **Feedforward Neural Network** from scratch using **NumPy**. The network is trained and tested on the **Fashion-MNIST dataset** for classifying images into **10 different categories**.
