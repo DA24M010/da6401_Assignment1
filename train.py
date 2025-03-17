@@ -31,38 +31,39 @@ if(__name__ == '__main__'):
 
     # Weights & Biases arguments
     parser.add_argument("-wp", "--wandb_project", type=str, default="DA6401 Assignments", help="Project name used to track experiments in Weights & Biases dashboard")
-    parser.add_argument("-we", "--wandb_entity", type=str, default="myname", help="Wandb Entity used to track experiments in the Weights & Biases dashboard.")
+    parser.add_argument("-we", "--wandb_entity", type=str, default="da24m010-indian-institute-of-technology-madras", help="Wandb Entity used to track experiments in the Weights & Biases dashboard.")
 
     # Dataset and training parameters
-    # Dataset to be added here only
-    # parser.add_argument("-d", "--dataset", type=str, choices=["mnist", "fashion_mnist"], default="fashion_mnist", help="Dataset to use.")
-    # parser.add_argument("-e", "--epochs", type=int, default=1, help="Number of epochs to train the neural network.")
-    # parser.add_argument("-b", "--batch_size", type=int, default=4, help="Batch size for training.")
+    parser.add_argument("-d", "--dataset", type=str, choices=["mnist", "fashion_mnist"], default="fashion_mnist", help="Dataset to use.")
+    parser.add_argument("-e", "--epochs", type=int, default=10, help="Number of epochs to train the neural network.")
+    parser.add_argument("-b", "--batch_size", type=int, default=32, help="Batch size for training.")
 
     # Loss function and optimizer
     parser.add_argument("-l", "--loss", type=str, choices=["mean_squared_error", "cross_entropy"], default="cross_entropy", help="Loss function to use.")
-    # parser.add_argument("-o", "--optimizer", type=str, choices=["sgd", "momentum", "nag", "rmsprop", "adam", "nadam"], default="sgd", help="Optimizer to use.")
+    parser.add_argument("-o", "--optimizer", type=str, choices=["sgd", "momentum", "nag", "rmsprop", "adam", "nadam"], default="nadam", help="Optimizer to use.")
 
     # Learning rate and optimizer parameters
-    # parser.add_argument("-lr", "--learning_rate", type=float, default=0.1, help="Learning rate for optimization.")
-    # parser.add_argument("-m", "--momentum", type=float, default=0.5, help="Momentum for momentum and nag optimizers.")
-    # parser.add_argument("-beta", "--beta", type=float, default=0.5, help="Beta for RMSprop optimizer.")
-    # parser.add_argument("-beta1", "--beta1", type=float, default=0.5, help="Beta1 for Adam and Nadam optimizers.")
-    # parser.add_argument("-beta2", "--beta2", type=float, default=0.5, help="Beta2 for Adam and Nadam optimizers.")
-    # parser.add_argument("-eps", "--epsilon", type=float, default=0.000001, help="Epsilon for optimizers.")
-    # parser.add_argument("-w_d", "--weight_decay", type=float, default=0.0, help="Weight decay for optimizers.")
+    parser.add_argument("-lr", "--learning_rate", type=float, default=0.001, help="Learning rate for optimization.")
+    parser.add_argument("-m", "--momentum", type=float, default=0.9, help="Momentum for momentum and nag optimizers.")
+    parser.add_argument("-beta", "--beta", type=float, default=0.9, help="Beta for RMSprop optimizer.")
+    parser.add_argument("-beta1", "--beta1", type=float, default=0.9, help="Beta1 for Adam and Nadam optimizers.")
+    parser.add_argument("-beta2", "--beta2", type=float, default=0.999, help="Beta2 for Adam and Nadam optimizers.")
+    parser.add_argument("-eps", "--epsilon", type=float, default=0.00000001, help="Epsilon for optimizers.")
+    parser.add_argument("-w_d", "--weight_decay", type=float, default=0.0, help="Weight decay for optimizers.")
 
     # Model architecture
-    # parser.add_argument("-w_i", "--weight_init", type=str, choices=["random", "Xavier"], default="random", help="Weight initialization method.")
-    # parser.add_argument("-nhl", "--num_layers", type=int, default=1, help="Number of hidden layers in the neural network.")
-    # parser.add_argument("-sz", "--hidden_size", type=int, default=4, help="Number of neurons in each hidden layer.")
-    # parser.add_argument("-a", "--activation", type=str, choices=["identity", "sigmoid", "tanh", "ReLU"], default="sigmoid", help="Activation function to use.")
+    parser.add_argument("-w_i", "--weight_init", type=str, choices=["random", "Xavier"], default="random", help="Weight initialization method.")
+    parser.add_argument("-nhl", "--num_layers", type=int, default=3, help="Number of hidden layers in the neural network.")
+    parser.add_argument("-sz", "--hidden_size", type=int, default=64, help="Number of neurons in each hidden layer.")
+    parser.add_argument("-a", "--activation", type=str, choices=["identity", "sigmoid", "tanh", "ReLU"], default="tanh", help="Activation function to use.")
 
     args = parser.parse_args()
     run = wandb.init(project=args.wandb_project, entity=args.wandb_entity) 
-    run.name = f"LR_{args.learning_rate}_HL_{args.num_hidden}_HLS_{args.hidden_size}_OPT_{args.optimizer}_ACTIVATION_{args.activation}_NUM_EPOCHS_{args.epochs}_BATCH_SIZE_{args.batch_size}_W_INIT_{args.weight_init}_W_DECAY_{args.weight_decay}"
-    model = FeedforwardNN(num_layers=args.num_hidden, hidden_size=args.hidden_size, learning_rate=args.learning_rate,
-                          activation=args.activation, optimizer=args.optimizer, weight_init=args.weight_init, weight_decay=args.weight_decay)
+    run.name = f"LR_{args.learning_rate}_HL_{args.num_layers}_HLS_{args.hidden_size}_OPT_{args.optimizer}_ACTIVATION_{args.activation}_NUM_EPOCHS_{args.epochs}_BATCH_SIZE_{args.batch_size}_W_INIT_{args.weight_init}_W_DECAY_{args.weight_decay}_LOSS_{args.loss}"
+
+    model = FeedforwardNN(num_layers=args.num_layers, hidden_size=args.hidden_size, learning_rate=args.learning_rate, momentum=args.momentum, 
+                          activation=args.activation, optimizer=args.optimizer, loss_function=args.loss, weight_init=args.weight_init, 
+                          beta=args.beta, epsilon=args.epsilon, beta1=args.beta1, beta2=args.beta2, weight_decay=args.weight_decay)
 
     model.train(epochs=args.epochs, batch_size=args.batch_size, dataset = args.dataset, wandb_logs= True)
 

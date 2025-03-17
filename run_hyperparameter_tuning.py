@@ -4,6 +4,7 @@ from nn import FeedforwardNN
 # Sweep Configuration
 sweep_config = {
     "method": "bayes",
+    "count": 100,
     "metric": {"name": "val_accuracy", "goal": "maximize"},
     "parameters": {
         "learning_rate": {"values": [0.001, 0.0001]},
@@ -26,7 +27,7 @@ def train_sweep():
     run.name = f"LR_{config.learning_rate}_HL_{config.num_hidden}_HLS_{config.hidden_size}_OPT_{config.optimizer}_ACTIVATION_{config.activation}_NUM_EPOCHS_{config.epochs}_BATCH_SIZE_{config.batch_size}_W_INIT_{config.weight_init}_W_DECAY_{config.weight_decay}"
 
     model = FeedforwardNN(num_layers=config.num_hidden, hidden_size=config.hidden_size, learning_rate=config.learning_rate,
-                          activation=config.activation, optimizer=config.optimizer, weight_init=config.weight_init, weight_decay=config.weight_decay)
+                          activation=config.activation, optimizer=config.optimizer, weight_init=config.weight_init, weight_decay=config.weight_decay, loss_function="cross_entropy")
 
     model.train(epochs=config.epochs, batch_size=config.batch_size, dataset = "fashion_mnist", wandb_logs = True)
     

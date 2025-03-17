@@ -66,7 +66,6 @@ class FeedforwardNN:
         # Return the corresponding optimizer, defaulting to SGD if not found
         return optimizers.get(opt_name, SGDOptimizer(learning_rate, self.weight_decay))
 
-
     def relu(self, x):
         return np.maximum(0, x)
 
@@ -155,7 +154,7 @@ class FeedforwardNN:
         # Compute output layer gradient based on the loss function
         if self.loss_function == "cross_entropy":
             da = self.a[-1] - y
-        elif self.loss_function == "mse":
+        elif self.loss_function == "mean_squared_error":
             da = 2 * (self.a[-1] - y) / m  
 
         for i in range(len(layers_to_use) - 1, -1, -1):
@@ -170,10 +169,22 @@ class FeedforwardNN:
         return grads
 
     def compute_accuracy(self, y_pred, y_true):
+        """
+        Computes the accuracy.
+        """
         y_pred_labels = np.argmax(y_pred, axis=1)
         y_true_labels = np.argmax(y_true, axis=1)
         return np.mean(y_pred_labels == y_true_labels)
     
+    def compute_loss(self, y_true, y_pred):
+        """
+        Computes the loss based on the specified loss function.
+        """
+        if self.loss_function == "mean_squared_error":
+            return np.mean((y_true - y_pred) ** 2)
+        else:
+            return -np.mean(y_true * np.log(y_pred + 1e-8))
+        
     def load_data(self, dataset, split = 0.9):
         self.data_loaded = True
         if(dataset.lower() == 'fashion_mnist'):
@@ -230,11 +241,11 @@ class FeedforwardNN:
 
             # Compute Loss and Accuracy
             y_train_pred = self.forward(self.X_train)
-            train_loss = -np.mean(self.y_train * np.log(y_train_pred + 1e-8))
+            train_loss = self.compute_loss(self.y_train, y_train_pred)
             train_accuracy = self.compute_accuracy(y_train_pred, self.y_train)
 
             y_val_pred = self.forward(self.X_val)
-            val_loss = -np.mean(self.y_val * np.log(y_val_pred + 1e-8))
+            val_loss = self.compute_loss(self.y_val, y_val_pred)
             val_accuracy = self.compute_accuracy(y_val_pred, self.y_val)
 
             if(log_test == False):
@@ -253,7 +264,7 @@ class FeedforwardNN:
                     f'Val Loss: {val_loss:.4f}, Val Acc: {val_accuracy:.4f}')
             else:
                 y_test_pred = self.forward(self.X_test)
-                test_loss = -np.mean(self.y_test * np.log(y_test_pred + 1e-8))
+                test_loss = self.compute_loss(self.y_test, y_test_pred)
                 test_accuracy = self.compute_accuracy(self.y_test, y_test_pred)
 
                 y_test_labels = np.argmax(self.y_test, axis=1)
