@@ -208,6 +208,7 @@ class FeedforwardNN:
         np.random.shuffle(indices)
 
         # Split data into training and validation sets (as per split percentage)
+        # Keeping 10% of the training data aside as validation data for the hyperparameter search. 
         val_split = int(split * num_samples)
         train_indices, val_indices = indices[:val_split], indices[val_split:]
         X_train, X_val = X_train[train_indices], X_train[val_indices]
